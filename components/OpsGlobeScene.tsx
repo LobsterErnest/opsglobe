@@ -50,11 +50,13 @@ function ConnectionLine({ start, end, color }: { start: [number, number, number]
 function ServerNode({ 
   data, 
   radius, 
-  onSelect 
+  onSelect,
+  setDebugMsg 
 }: { 
   data: ServerLocation; 
   radius: number; 
-  onSelect: (data: ServerLocation) => void 
+  onSelect: (data: ServerLocation) => void;
+  setDebugMsg: (msg: string) => void;
 }) {
   const position = useMemo(() => latLongToVector3(data.lat, data.lon, radius), [data.lat, data.lon, radius]);
   const [hovered, setHover] = useState(false);
@@ -63,20 +65,23 @@ function ServerNode({
 
   return (
     <group position={position}>
-      {/* Invisible HITBOX (Larger & Floating) for easier clicking */}
+      {/* 
+         HITBOX STRATEGY:
+         1. Visible=true but Opacity=0 (forces Raycaster to see it)
+         2. Radius=0.35 (Huge compared to 0.06 visual node)
+         3. Slightly elevated (z position) relative to group to ensure it's "on top" of earth
+      */}
       <mesh 
-        visible={false} // Set to true for debugging redness
-        position={[0, 0, 0]} 
-        scale={[1.2, 1.2, 1.2]} // Make it bigger
         onClick={(e) => { 
-          e.stopPropagation(); // CRITICAL: Stop event from hitting the globe
-          console.log("Clicked Node:", data.name);
+          e.stopPropagation(); // Stop event from hitting the globe
+          setDebugMsg(`CLICKED: ${data.name}`);
           onSelect(data); 
         }}
         onPointerOver={() => { setHover(true); document.body.style.cursor = 'pointer'; }}
         onPointerOut={() => { setHover(false); document.body.style.cursor = 'auto'; }}
       >
-        <sphereGeometry args={[0.15, 16, 16]} /> 
+        <sphereGeometry args={[0.35, 16, 16]} /> 
+        <meshBasicMaterial color="red" transparent opacity={0.0} depthWrite={false} /> 
       </mesh>
 
       {/* Visible Node */}
@@ -100,11 +105,10 @@ function ServerNode({
   );
 }
 
-function MainGlobe({ onSelectNode, nodeData }: { onSelectNode: (node: ServerLocation | null) => void, nodeData: ServerLocation[] }) {
+function MainGlobe({ onSelectNode, nodeData, setDebugMsg }: { onSelectNode: (node: ServerLocation | null) => void, nodeData: ServerLocation[], setDebugMsg: (msg: string) => void }) {
   const globeRef = useRef<THREE.Mesh>(null);
   const GLOBE_RADIUS = 2;
 
-  // Use the downloaded texture
   const colorMap = useTexture('/earth_daymap.jpg');
 
   useFrame((state, delta) => {
@@ -121,7 +125,9 @@ function MainGlobe({ onSelectNode, nodeData }: { onSelectNode: (node: ServerLoca
       <mesh 
         ref={globeRef} 
         onClick={(e) => {
-          // Deselect when clicking empty ocean/land
+          // If we hit the globe (and not a node via stopPropagation), deselect
+          // But only if the click wasn't dragged (handled by R3F usually, but let's be safe)
+          setDebugMsg(`CLICKED: Empty Space (Deselect)`);
           onSelectNode(null);
         }}
       >
@@ -132,23 +138,22 @@ function MainGlobe({ onSelectNode, nodeData }: { onSelectNode: (node: ServerLoca
           metalness={0.1}
         />
 
-        {/* Atmosphere/Haze - Ignore pointer events */}
+        {/* Atmosphere - RAYCAST DISABLED via null return to prevent blocking */}
         <mesh scale={[1.02, 1.02, 1.02]} raycast={() => null}>
              <sphereGeometry args={[GLOBE_RADIUS, 64, 64]} />
              <meshBasicMaterial color="#000020" transparent opacity={0.2} blending={THREE.AdditiveBlending} side={THREE.BackSide} />
         </mesh>
 
-        {/* Nodes are children of Globe so they rotate with it automatically */}
         {nodeData.map((loc) => (
           <ServerNode 
             key={loc.id} 
             data={loc} 
             radius={GLOBE_RADIUS} 
             onSelect={onSelectNode} 
+            setDebugMsg={setDebugMsg}
           />
         ))}
 
-        {/* Connections */}
         {nodeData.filter(l => l.id !== 'mad').map((loc) => {
           const pos = latLongToVector3(loc.lat, loc.lon, GLOBE_RADIUS);
           return (
@@ -168,14 +173,13 @@ function MainGlobe({ onSelectNode, nodeData }: { onSelectNode: (node: ServerLoca
 export default function OpsGlobeScene() {
   const [selectedNode, setSelectedNode] = useState<ServerLocation | null>(null);
   const [nodeData, setNodeData] = useState<ServerLocation[]>(STATIC_LOCATIONS);
+  const [debugMsg, setDebugMsg] = useState("Ready");
 
-  // Poll for live status
   useEffect(() => {
     const fetchStatus = async () => {
       try {
         const res = await fetch('/api/status');
         const data = await res.json();
-        
         setNodeData(prev => prev.map(node => {
           const live = data.nodes.find((n: any) => n.id === node.id);
           if (live) {
@@ -187,7 +191,6 @@ export default function OpsGlobeScene() {
         console.error("Failed to fetch status", e);
       }
     };
-    
     fetchStatus();
     const interval = setInterval(fetchStatus, 10000); 
     return () => clearInterval(interval);
@@ -199,14 +202,14 @@ export default function OpsGlobeScene() {
         <color attach="background" args={["#000000"]} />
         <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={0.5} />
         
-        {/* Much brighter lights for texture visibility */}
         <ambientLight intensity={1.5} />
         <directionalLight position={[10, 10, 5]} intensity={2} />
         <pointLight position={[-10, -10, -5]} intensity={1} color="#4444ff" />
         
-        <MainGlobe onSelectNode={setSelectedNode} nodeData={nodeData} />
+        <MainGlobe onSelectNode={setSelectedNode} nodeData={nodeData} setDebugMsg={setDebugMsg} />
         
         <OrbitControls 
+          makeDefault // IMPORTANT: Syncs events properly
           enablePan={false} 
           minDistance={3} 
           maxDistance={10} 
@@ -231,7 +234,14 @@ export default function OpsGlobeScene() {
         </div>
       </div>
 
-      {/* Detail Panel - Responsive: Bottom sheet on mobile, Right panel on desktop */}
+      {/* DEBUG PANEL (Bottom Left) - Helps verify touch inputs */}
+      <div className="absolute bottom-2 left-2 z-10 pointer-events-none">
+         <div className="text-[10px] text-zinc-600 font-mono">
+           SYS_LOG: {debugMsg}
+         </div>
+      </div>
+
+      {/* Detail Panel */}
       {selectedNode && (
         <div className="absolute z-50 bg-zinc-900/95 backdrop-blur-xl border-t md:border border-zinc-600 p-5 text-white shadow-2xl transition-all animate-in slide-in-from-bottom-10 md:slide-in-from-right-10
           bottom-0 left-0 w-full rounded-t-2xl
@@ -267,15 +277,6 @@ export default function OpsGlobeScene() {
                 {selectedNode.latency ? `${selectedNode.latency}ms` : '...'}
               </span>
             </div>
-            {/* Hidden on very small screens if needed, or shown in grid */}
-            <div className="col-span-2 flex flex-col md:flex-row md:justify-between md:border-b border-zinc-800 pb-2">
-              <span className="text-zinc-400 text-xs md:text-sm">Load</span>
-              <span className="font-mono">{Math.floor(Math.random() * 30) + 10}%</span>
-            </div>
-          </div>
-
-          <div className="mt-4 pt-2 border-t border-zinc-700 text-[10px] text-zinc-500 text-center uppercase tracking-wider hidden md:block">
-            Live Telemetry • Updates every 10s
           </div>
         </div>
       )}
