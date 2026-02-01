@@ -14,6 +14,7 @@ type ServerLocation = {
   lon: number;
   status: "online" | "warning" | "error";
   region: string;
+  latency?: number;
 };
 
 const LOCATIONS: ServerLocation[] = [
@@ -95,6 +96,33 @@ function MainGlobe({ onSelectNode }: { onSelectNode: (node: ServerLocation | nul
     }
   });
 
+  const [nodeData, setNodeData] = useState<ServerLocation[]>(LOCATIONS);
+
+  // Poll for live status
+  useMemo(() => {
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        
+        // Merge live data with static coords
+        setNodeData(prev => prev.map(node => {
+          const live = data.nodes.find((n: any) => n.id === node.id);
+          if (live) {
+            return { ...node, status: live.status, latency: live.latency };
+          }
+          return node;
+        }));
+      } catch (e) {
+        console.error("Failed to fetch status", e);
+      }
+    };
+    
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 10000); // Refresh every 10s
+    return () => clearInterval(interval);
+  }, []);
+
   const madridPos = useMemo(() => latLongToVector3(40.4168, -3.7038, GLOBE_RADIUS), []);
 
   return (
@@ -111,7 +139,7 @@ function MainGlobe({ onSelectNode }: { onSelectNode: (node: ServerLocation | nul
         </mesh>
 
         {/* Nodes attached to the globe rotation */}
-        {LOCATIONS.map((loc) => (
+        {nodeData.map((loc) => (
           <ServerNode 
             key={loc.id} 
             data={loc} 
@@ -121,7 +149,7 @@ function MainGlobe({ onSelectNode }: { onSelectNode: (node: ServerLocation | nul
         ))}
 
         {/* Connections (Static for now, could be dynamic) */}
-        {LOCATIONS.filter(l => l.id !== 'mad').map((loc) => {
+        {nodeData.filter(l => l.id !== 'mad').map((loc) => {
           const pos = latLongToVector3(loc.lat, loc.lon, GLOBE_RADIUS);
           return (
             <ConnectionLine 
@@ -200,8 +228,10 @@ export default function OpsGlobeScene() {
               <span className="font-mono">{Math.floor(Math.random() * 8) + 4}GB / 32GB</span>
             </div>
             <div className="flex justify-between border-b border-zinc-800 pb-1">
-              <span className="text-zinc-400">Latency (HQ)</span>
-              <span className="font-mono">{Math.floor(Math.random() * 150) + 20}ms</span>
+              <span className="text-zinc-400">Latency (Real)</span>
+              <span className="font-mono text-green-400">
+                {selectedNode.latency ? `${selectedNode.latency}ms` : 'Checking...'}
+              </span>
             </div>
           </div>
 
