@@ -1,12 +1,12 @@
 "use client";
 
-import { useRef, useState, useMemo } from "react";
+import { useRef, useState, useMemo, useEffect } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, Stars, Html, QuadraticBezierLine } from "@react-three/drei";
+import { OrbitControls, Stars, QuadraticBezierLine, useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import { latLongToVector3 } from "../utils/geo";
 
-// --- DATA ---
+// --- DATA TYPES ---
 type ServerLocation = {
   id: string;
   name: string;
@@ -17,7 +17,7 @@ type ServerLocation = {
   latency?: number;
 };
 
-const LOCATIONS: ServerLocation[] = [
+const STATIC_LOCATIONS: ServerLocation[] = [
   { id: "mad", name: "Madrid HQ", lat: 40.4168, lon: -3.7038, status: "online", region: "EU-South" },
   { id: "nyc", name: "New York Core", lat: 40.7128, lon: -74.0060, status: "online", region: "US-East" },
   { id: "sfo", name: "San Francisco", lat: 37.7749, lon: -122.4194, status: "warning", region: "US-West" },
@@ -35,7 +35,7 @@ function ConnectionLine({ start, end, color }: { start: [number, number, number]
       start={start}
       end={end}
       mid={[
-        (start[0] + end[0]) / 2 * 1.5, // Push midpoint out to curve nicely
+        (start[0] + end[0]) / 2 * 1.5,
         (start[1] + end[1]) / 2 * 1.5,
         (start[2] + end[2]) / 2 * 1.5
       ]}
@@ -63,11 +63,22 @@ function ServerNode({
 
   return (
     <group position={position}>
-      <mesh
-        onClick={(e) => { e.stopPropagation(); onSelect(data); }}
+      {/* Invisible HITBOX (Larger) for easier clicking */}
+      <mesh 
+        visible={false}
+        onClick={(e) => { 
+          e.stopPropagation(); // Stop event from hitting the globe behind
+          console.log("Clicked Node:", data.name);
+          onSelect(data); 
+        }}
         onPointerOver={() => { setHover(true); document.body.style.cursor = 'pointer'; }}
         onPointerOut={() => { setHover(false); document.body.style.cursor = 'auto'; }}
       >
+        <sphereGeometry args={[0.2, 16, 16]} /> {/* Big hitbox */}
+      </mesh>
+
+      {/* Visible Node */}
+      <mesh>
         <sphereGeometry args={[0.06, 16, 16]} />
         <meshStandardMaterial
           color={color}
@@ -75,70 +86,57 @@ function ServerNode({
           emissiveIntensity={hovered ? 3 : 1.5}
         />
       </mesh>
-      {/* Glow effect ring */}
+
+      {/* Glow Ring */}
       {hovered && (
         <mesh>
-          <ringGeometry args={[0.08, 0.1, 32]} />
-          <meshBasicMaterial color={color} side={THREE.DoubleSide} transparent opacity={0.5} />
+          <ringGeometry args={[0.08, 0.12, 32]} />
+          <meshBasicMaterial color={color} side={THREE.DoubleSide} transparent opacity={0.8} />
         </mesh>
       )}
     </group>
   );
 }
 
-function MainGlobe({ onSelectNode }: { onSelectNode: (node: ServerLocation | null) => void }) {
+function MainGlobe({ onSelectNode, nodeData }: { onSelectNode: (node: ServerLocation | null) => void, nodeData: ServerLocation[] }) {
   const globeRef = useRef<THREE.Mesh>(null);
   const GLOBE_RADIUS = 2;
 
+  // Use the downloaded texture
+  const colorMap = useTexture('/earth_daymap.jpg');
+
   useFrame((state, delta) => {
     if (globeRef.current) {
-      globeRef.current.rotation.y += delta * 0.02; // Slow rotation
+      globeRef.current.rotation.y += delta * 0.02; 
     }
   });
-
-  const [nodeData, setNodeData] = useState<ServerLocation[]>(LOCATIONS);
-
-  // Poll for live status
-  useMemo(() => {
-    const fetchStatus = async () => {
-      try {
-        const res = await fetch('/api/status');
-        const data = await res.json();
-        
-        // Merge live data with static coords
-        setNodeData(prev => prev.map(node => {
-          const live = data.nodes.find((n: any) => n.id === node.id);
-          if (live) {
-            return { ...node, status: live.status, latency: live.latency };
-          }
-          return node;
-        }));
-      } catch (e) {
-        console.error("Failed to fetch status", e);
-      }
-    };
-    
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 10000); // Refresh every 10s
-    return () => clearInterval(interval);
-  }, []);
 
   const madridPos = useMemo(() => latLongToVector3(40.4168, -3.7038, GLOBE_RADIUS), []);
 
   return (
     <group>
-      {/* Interactive invisible sphere for drag catching if needed */}
-      <mesh ref={globeRef} onClick={() => onSelectNode(null)}>
+      {/* The Globe Mesh */}
+      <mesh 
+        ref={globeRef} 
+        onClick={(e) => {
+          // Deselect when clicking empty ocean/land
+          onSelectNode(null);
+        }}
+      >
         <sphereGeometry args={[GLOBE_RADIUS, 64, 64]} />
-        <meshStandardMaterial color="#050510" roughness={0.8} metalness={0.2} />
-        
-        {/* Child mesh for wireframe to rotate with globe */}
-        <mesh>
-          <sphereGeometry args={[GLOBE_RADIUS + 0.01, 32, 32]} />
-          <meshBasicMaterial color="#303050" wireframe transparent opacity={0.15} />
+        <meshStandardMaterial 
+          map={colorMap} 
+          roughness={0.6}
+          metalness={0.1}
+        />
+
+        {/* Atmosphere/Haze */}
+        <mesh scale={[1.01, 1.01, 1.01]}>
+             <sphereGeometry args={[GLOBE_RADIUS, 64, 64]} />
+             <meshBasicMaterial color="#000020" transparent opacity={0.2} blending={THREE.AdditiveBlending} side={THREE.BackSide} />
         </mesh>
 
-        {/* Nodes attached to the globe rotation */}
+        {/* Nodes are children of Globe so they rotate with it automatically */}
         {nodeData.map((loc) => (
           <ServerNode 
             key={loc.id} 
@@ -148,7 +146,7 @@ function MainGlobe({ onSelectNode }: { onSelectNode: (node: ServerLocation | nul
           />
         ))}
 
-        {/* Connections (Static for now, could be dynamic) */}
+        {/* Connections */}
         {nodeData.filter(l => l.id !== 'mad').map((loc) => {
           const pos = latLongToVector3(loc.lat, loc.lon, GLOBE_RADIUS);
           return (
@@ -167,16 +165,44 @@ function MainGlobe({ onSelectNode }: { onSelectNode: (node: ServerLocation | nul
 
 export default function OpsGlobeScene() {
   const [selectedNode, setSelectedNode] = useState<ServerLocation | null>(null);
+  const [nodeData, setNodeData] = useState<ServerLocation[]>(STATIC_LOCATIONS);
+
+  // Poll for live status
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        
+        setNodeData(prev => prev.map(node => {
+          const live = data.nodes.find((n: any) => n.id === node.id);
+          if (live) {
+            return { ...node, status: live.status, latency: live.latency };
+          }
+          return node;
+        }));
+      } catch (e) {
+        console.error("Failed to fetch status", e);
+      }
+    };
+    
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 10000); 
+    return () => clearInterval(interval);
+  }, []);
 
   return (
-    <div className="w-full h-screen bg-black relative">
-      <Canvas camera={{ position: [0, 0, 5.5], fov: 45 }}>
-        <color attach="background" args={["#000005"]} />
+    <div className="w-full h-screen bg-black relative overflow-hidden">
+      <Canvas camera={{ position: [0, 0, 6], fov: 45 }}>
+        <color attach="background" args={["#000000"]} />
         <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={0.5} />
-        <ambientLight intensity={0.5} />
-        <pointLight position={[10, 10, 10]} intensity={2} color="#4444ff" />
         
-        <MainGlobe onSelectNode={setSelectedNode} />
+        {/* Much brighter lights for texture visibility */}
+        <ambientLight intensity={1.5} />
+        <directionalLight position={[10, 10, 5]} intensity={2} />
+        <pointLight position={[-10, -10, -5]} intensity={1} color="#4444ff" />
+        
+        <MainGlobe onSelectNode={setSelectedNode} nodeData={nodeData} />
         
         <OrbitControls 
           enablePan={false} 
@@ -190,62 +216,63 @@ export default function OpsGlobeScene() {
       
       {/* UI Overlay */}
       <div className="absolute top-6 left-6 z-10 pointer-events-none select-none">
-        <h1 className="text-3xl font-bold text-white tracking-tighter">
+        <h1 className="text-3xl font-bold text-white tracking-tighter drop-shadow-md">
           OPS<span className="text-cyan-500">GLOBE</span>
         </h1>
         <div className="flex gap-2 mt-2">
-           <div className="text-[10px] bg-zinc-900 border border-zinc-800 px-2 py-1 rounded text-zinc-400">
-             NODES: <span className="text-white">{LOCATIONS.length}</span>
+           <div className="text-[10px] bg-zinc-900/80 border border-zinc-700 px-2 py-1 rounded text-zinc-300 backdrop-blur">
+             NODES: <span className="text-white">{nodeData.length}</span>
            </div>
-           <div className="text-[10px] bg-zinc-900 border border-zinc-800 px-2 py-1 rounded text-zinc-400">
-             NET: <span className="text-green-400">STABLE</span>
+           <div className="text-[10px] bg-zinc-900/80 border border-zinc-700 px-2 py-1 rounded text-zinc-300 backdrop-blur">
+             NET: <span className="text-green-400">ACTIVE</span>
            </div>
         </div>
       </div>
 
-      {/* Detail Panel */}
+      {/* Detail Panel - Forced z-index and conditional rendering */}
       {selectedNode && (
-        <div className="absolute right-6 top-6 w-64 bg-zinc-900/90 backdrop-blur-md border border-zinc-700 rounded-lg p-4 text-white shadow-2xl transition-all animate-in slide-in-from-right-10">
+        <div className="absolute right-6 top-6 w-72 z-50 bg-zinc-900/95 backdrop-blur-xl border border-zinc-600 rounded-lg p-5 text-white shadow-2xl transition-all animate-in slide-in-from-right-10">
+          <button 
+            onClick={() => setSelectedNode(null)}
+            className="absolute top-2 right-2 text-zinc-500 hover:text-white"
+          >
+            ✕
+          </button>
+          
           <div className="flex justify-between items-start mb-4">
             <div>
-              <h2 className="text-lg font-bold text-cyan-400">{selectedNode.name}</h2>
-              <p className="text-xs text-zinc-500">{selectedNode.region} • {selectedNode.lat.toFixed(2)}, {selectedNode.lon.toFixed(2)}</p>
+              <h2 className="text-xl font-bold text-cyan-400">{selectedNode.name}</h2>
+              <p className="text-xs text-zinc-400">{selectedNode.region} • {selectedNode.lat.toFixed(2)}, {selectedNode.lon.toFixed(2)}</p>
             </div>
-            <div className={`w-2 h-2 rounded-full ${
-              selectedNode.status === 'online' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : 
-              selectedNode.status === 'warning' ? 'bg-yellow-500 shadow-[0_0_10px_#eab308]' : 
-              'bg-red-500 shadow-[0_0_10px_#ef4444]'
+            <div className={`w-3 h-3 rounded-full ${
+              selectedNode.status === 'online' ? 'bg-green-500 shadow-[0_0_12px_#22c55e]' : 
+              selectedNode.status === 'warning' ? 'bg-yellow-500 shadow-[0_0_12px_#eab308]' : 
+              'bg-red-500 shadow-[0_0_12px_#ef4444]'
             }`} />
           </div>
           
           <div className="space-y-3 text-sm">
-            <div className="flex justify-between border-b border-zinc-800 pb-1">
-              <span className="text-zinc-400">CPU Usage</span>
-              <span className="font-mono">{Math.floor(Math.random() * 40) + 10}%</span>
+            <div className="flex justify-between border-b border-zinc-800 pb-2">
+              <span className="text-zinc-400">Status</span>
+              <span className="font-mono uppercase">{selectedNode.status}</span>
             </div>
-            <div className="flex justify-between border-b border-zinc-800 pb-1">
-              <span className="text-zinc-400">Memory</span>
-              <span className="font-mono">{Math.floor(Math.random() * 8) + 4}GB / 32GB</span>
-            </div>
-            <div className="flex justify-between border-b border-zinc-800 pb-1">
+            <div className="flex justify-between border-b border-zinc-800 pb-2">
               <span className="text-zinc-400">Latency (Real)</span>
-              <span className="font-mono text-green-400">
-                {selectedNode.latency ? `${selectedNode.latency}ms` : 'Checking...'}
+              <span className={`font-mono ${selectedNode.latency ? 'text-green-400' : 'text-zinc-500'}`}>
+                {selectedNode.latency ? `${selectedNode.latency}ms` : 'Pinging...'}
               </span>
+            </div>
+            <div className="flex justify-between border-b border-zinc-800 pb-2">
+              <span className="text-zinc-400">Load</span>
+              <span className="font-mono">{Math.floor(Math.random() * 30) + 10}%</span>
             </div>
           </div>
 
-          <div className="mt-4 pt-2 border-t border-zinc-700 text-xs text-zinc-500 text-center uppercase tracking-wider">
-            Telemetry Live
+          <div className="mt-4 pt-2 border-t border-zinc-700 text-[10px] text-zinc-500 text-center uppercase tracking-wider">
+            Live Telemetry • Updates every 10s
           </div>
         </div>
       )}
-
-      <div className="absolute bottom-6 left-0 w-full text-center pointer-events-none">
-        <p className="text-zinc-600 text-[10px] uppercase tracking-[0.2em]">
-          Interactive Infrastructure Map v1.1
-        </p>
-      </div>
     </div>
   );
 }
