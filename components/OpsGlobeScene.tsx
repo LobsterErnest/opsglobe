@@ -201,15 +201,16 @@ export default function OpsGlobeScene() {
   return (
     <div 
       ref={containerRef}
-      className="relative w-full h-[100dvh] bg-black overflow-hidden touch-none"
+      className="relative w-full h-[100dvh] bg-[#050510] overflow-hidden touch-none isolate" // Dark Blue BG + Isolate stacking context
     >
       <Canvas 
         eventSource={containerRef as React.RefObject<HTMLElement>}
         className="absolute inset-0 z-0 touch-none"
+        style={{ pointerEvents: 'auto' }} // Explicit pointer events
         camera={{ position: [0, 0, 6], fov: 45 }}
-        gl={{ alpha: true }} // Allow transparency
+        gl={{ alpha: true, preserveDrawingBuffer: true }}
       >
-        {/* REMOVED: <color attach="background" args={["#000000"]} /> to allow transparency */}
+        {/* No background color here - letting HTML bg show through */}
         <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={0.5} />
         
         <ambientLight intensity={1.5} />
@@ -229,8 +230,30 @@ export default function OpsGlobeScene() {
         />
       </Canvas>
       
-      {/* UI Overlay - Z-50 forces it on top of Canvas */}
-      <div className="absolute top-6 left-6 z-50 pointer-events-none select-none">
+      {/* UI Overlay - Using styles to force layer promotion */}
+      <div 
+        className="absolute top-0 left-0 w-full h-full z-50 pointer-events-none select-none"
+        style={{ transform: 'translateZ(1px)' }} // Hack to force GPU layer on top
+      >
+        <div className="absolute top-6 left-6 pointer-events-auto">
+          <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tighter drop-shadow-md bg-black/20 p-2 rounded backdrop-blur-md">
+            OPS<span className="text-cyan-500">GLOBE</span> v11
+          </h1>
+          
+          {/* Debug/Status Box */}
+          <div className="mt-2 flex flex-col gap-2">
+             <div className="text-[10px] text-zinc-300 bg-black/40 p-1 px-2 rounded backdrop-blur border border-white/10 font-mono">
+               LOG: {debugMsg}
+             </div>
+             <button 
+                className="bg-red-600 text-white text-xs px-3 py-2 rounded font-bold shadow-lg active:scale-95 transition-transform"
+                onClick={() => setDebugMsg(`TEST OK: ${Date.now().toString().slice(-4)}`)}
+             >
+               🔴 TEST CLICK
+             </button>
+          </div>
+        </div>
+      </div>
         <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tighter drop-shadow-md">
           OPS<span className="text-cyan-500">GLOBE</span>
         </h1>
