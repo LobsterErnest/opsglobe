@@ -216,7 +216,7 @@ export default function OpsGlobeScene() {
       
       {/* UI Overlay */}
       <div className="absolute top-6 left-6 z-10 pointer-events-none select-none">
-        <h1 className="text-3xl font-bold text-white tracking-tighter drop-shadow-md">
+        <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tighter drop-shadow-md">
           OPS<span className="text-cyan-500">GLOBE</span>
         </h1>
         <div className="flex gap-2 mt-2">
@@ -229,46 +229,50 @@ export default function OpsGlobeScene() {
         </div>
       </div>
 
-      {/* Detail Panel - Forced z-index and conditional rendering */}
+      {/* Detail Panel - Responsive: Bottom sheet on mobile, Right panel on desktop */}
       {selectedNode && (
-        <div className="absolute right-6 top-6 w-72 z-50 bg-zinc-900/95 backdrop-blur-xl border border-zinc-600 rounded-lg p-5 text-white shadow-2xl transition-all animate-in slide-in-from-right-10">
+        <div className="absolute z-50 bg-zinc-900/95 backdrop-blur-xl border-t md:border border-zinc-600 p-5 text-white shadow-2xl transition-all animate-in slide-in-from-bottom-10 md:slide-in-from-right-10
+          bottom-0 left-0 w-full rounded-t-2xl
+          md:top-6 md:right-6 md:left-auto md:bottom-auto md:w-72 md:rounded-lg"
+        >
           <button 
             onClick={() => setSelectedNode(null)}
-            className="absolute top-2 right-2 text-zinc-500 hover:text-white"
+            className="absolute top-3 right-4 md:top-2 md:right-2 p-2 text-zinc-500 hover:text-white bg-zinc-800/50 rounded-full md:bg-transparent"
           >
             ✕
           </button>
           
-          <div className="flex justify-between items-start mb-4">
+          <div className="flex justify-between items-start mb-4 pr-8">
             <div>
               <h2 className="text-xl font-bold text-cyan-400">{selectedNode.name}</h2>
-              <p className="text-xs text-zinc-400">{selectedNode.region} • {selectedNode.lat.toFixed(2)}, {selectedNode.lon.toFixed(2)}</p>
+              <p className="text-xs text-zinc-400">{selectedNode.region}</p>
             </div>
-            <div className={`w-3 h-3 rounded-full ${
+            <div className={`mt-1 w-3 h-3 rounded-full ${
               selectedNode.status === 'online' ? 'bg-green-500 shadow-[0_0_12px_#22c55e]' : 
               selectedNode.status === 'warning' ? 'bg-yellow-500 shadow-[0_0_12px_#eab308]' : 
               'bg-red-500 shadow-[0_0_12px_#ef4444]'
             }`} />
           </div>
           
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between border-b border-zinc-800 pb-2">
-              <span className="text-zinc-400">Status</span>
+          <div className="grid grid-cols-2 md:block gap-4 md:gap-0 space-y-0 md:space-y-3 text-sm">
+            <div className="flex flex-col md:flex-row md:justify-between md:border-b border-zinc-800 pb-2">
+              <span className="text-zinc-400 text-xs md:text-sm">Status</span>
               <span className="font-mono uppercase">{selectedNode.status}</span>
             </div>
-            <div className="flex justify-between border-b border-zinc-800 pb-2">
-              <span className="text-zinc-400">Latency (Real)</span>
+            <div className="flex flex-col md:flex-row md:justify-between md:border-b border-zinc-800 pb-2">
+              <span className="text-zinc-400 text-xs md:text-sm">Latency</span>
               <span className={`font-mono ${selectedNode.latency ? 'text-green-400' : 'text-zinc-500'}`}>
-                {selectedNode.latency ? `${selectedNode.latency}ms` : 'Pinging...'}
+                {selectedNode.latency ? `${selectedNode.latency}ms` : '...'}
               </span>
             </div>
-            <div className="flex justify-between border-b border-zinc-800 pb-2">
-              <span className="text-zinc-400">Load</span>
+            {/* Hidden on very small screens if needed, or shown in grid */}
+            <div className="col-span-2 flex flex-col md:flex-row md:justify-between md:border-b border-zinc-800 pb-2">
+              <span className="text-zinc-400 text-xs md:text-sm">Load</span>
               <span className="font-mono">{Math.floor(Math.random() * 30) + 10}%</span>
             </div>
           </div>
 
-          <div className="mt-4 pt-2 border-t border-zinc-700 text-[10px] text-zinc-500 text-center uppercase tracking-wider">
+          <div className="mt-4 pt-2 border-t border-zinc-700 text-[10px] text-zinc-500 text-center uppercase tracking-wider hidden md:block">
             Live Telemetry • Updates every 10s
           </div>
         </div>
