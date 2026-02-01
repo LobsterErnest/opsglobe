@@ -204,7 +204,7 @@ export default function OpsGlobeScene() {
       className="w-full h-screen bg-black relative overflow-hidden touch-none" // touch-none is CRITICAL for mobile
     >
       <Canvas 
-        eventSource={containerRef} // Bind events to parent div (Fixes React 19 interaction)
+        eventSource={containerRef as React.RefObject<HTMLElement>} // Bind events to parent div (Fixes React 19 interaction)
         className="touch-none"
         camera={{ position: [0, 0, 6], fov: 45 }}
       >
