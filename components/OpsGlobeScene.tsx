@@ -173,10 +173,12 @@ function MainGlobe({ onSelectNode, nodeData, setDebugMsg }: { onSelectNode: (nod
 export default function OpsGlobeScene() {
   const [selectedNode, setSelectedNode] = useState<ServerLocation | null>(null);
   const [nodeData, setNodeData] = useState<ServerLocation[]>(STATIC_LOCATIONS);
-  const [debugMsg, setDebugMsg] = useState("Ready");
+  const [debugMsg, setDebugMsg] = useState("Ready (R19 Fix)");
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchStatus = async () => {
+      // ... same fetch logic ...
       try {
         const res = await fetch('/api/status');
         const data = await res.json();
@@ -188,7 +190,7 @@ export default function OpsGlobeScene() {
           return node;
         }));
       } catch (e) {
-        console.error("Failed to fetch status", e);
+        // silent fail
       }
     };
     fetchStatus();
@@ -197,8 +199,15 @@ export default function OpsGlobeScene() {
   }, []);
 
   return (
-    <div className="w-full h-screen bg-black relative overflow-hidden">
-      <Canvas camera={{ position: [0, 0, 6], fov: 45 }}>
+    <div 
+      ref={containerRef}
+      className="w-full h-screen bg-black relative overflow-hidden touch-none" // touch-none is CRITICAL for mobile
+    >
+      <Canvas 
+        eventSource={containerRef} // Bind events to parent div (Fixes React 19 interaction)
+        className="touch-none"
+        camera={{ position: [0, 0, 6], fov: 45 }}
+      >
         <color attach="background" args={["#000000"]} />
         <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={0.5} />
         
@@ -209,7 +218,7 @@ export default function OpsGlobeScene() {
         <MainGlobe onSelectNode={setSelectedNode} nodeData={nodeData} setDebugMsg={setDebugMsg} />
         
         <OrbitControls 
-          makeDefault // IMPORTANT: Syncs events properly
+          makeDefault 
           enablePan={false} 
           minDistance={3} 
           maxDistance={10} 
@@ -235,10 +244,17 @@ export default function OpsGlobeScene() {
       </div>
 
       {/* DEBUG PANEL (Bottom Left) - Helps verify touch inputs */}
-      <div className="absolute bottom-2 left-2 z-10 pointer-events-none">
-         <div className="text-[10px] text-zinc-600 font-mono">
+      <div className="absolute bottom-2 left-2 z-10 pointer-events-none flex flex-col gap-2">
+         <div className="text-[10px] text-zinc-600 font-mono bg-white/10 p-1">
            SYS_LOG: {debugMsg}
          </div>
+         {/* HTML Test Button - Verify layer clicks */}
+         <button 
+            className="pointer-events-auto bg-red-500/50 text-[10px] text-white px-2 py-1 rounded"
+            onClick={() => setDebugMsg("HTML CLICK OK")}
+         >
+           TEST HTML CLICK
+         </button>
       </div>
 
       {/* Detail Panel */}
