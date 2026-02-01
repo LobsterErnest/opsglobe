@@ -63,18 +63,20 @@ function ServerNode({
 
   return (
     <group position={position}>
-      {/* Invisible HITBOX (Larger) for easier clicking */}
+      {/* Invisible HITBOX (Larger & Floating) for easier clicking */}
       <mesh 
-        visible={false}
+        visible={false} // Set to true for debugging redness
+        position={[0, 0, 0]} 
+        scale={[1.2, 1.2, 1.2]} // Make it bigger
         onClick={(e) => { 
-          e.stopPropagation(); // Stop event from hitting the globe behind
+          e.stopPropagation(); // CRITICAL: Stop event from hitting the globe
           console.log("Clicked Node:", data.name);
           onSelect(data); 
         }}
         onPointerOver={() => { setHover(true); document.body.style.cursor = 'pointer'; }}
         onPointerOut={() => { setHover(false); document.body.style.cursor = 'auto'; }}
       >
-        <sphereGeometry args={[0.2, 16, 16]} /> {/* Big hitbox */}
+        <sphereGeometry args={[0.15, 16, 16]} /> 
       </mesh>
 
       {/* Visible Node */}
@@ -130,8 +132,8 @@ function MainGlobe({ onSelectNode, nodeData }: { onSelectNode: (node: ServerLoca
           metalness={0.1}
         />
 
-        {/* Atmosphere/Haze */}
-        <mesh scale={[1.01, 1.01, 1.01]}>
+        {/* Atmosphere/Haze - Ignore pointer events */}
+        <mesh scale={[1.02, 1.02, 1.02]} raycast={() => null}>
              <sphereGeometry args={[GLOBE_RADIUS, 64, 64]} />
              <meshBasicMaterial color="#000020" transparent opacity={0.2} blending={THREE.AdditiveBlending} side={THREE.BackSide} />
         </mesh>
