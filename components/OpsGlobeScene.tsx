@@ -201,14 +201,15 @@ export default function OpsGlobeScene() {
   return (
     <div 
       ref={containerRef}
-      className="w-full h-screen bg-black relative overflow-hidden touch-none" // touch-none is CRITICAL for mobile
+      className="relative w-full h-[100dvh] bg-black overflow-hidden touch-none"
     >
       <Canvas 
-        eventSource={containerRef as React.RefObject<HTMLElement>} // Bind events to parent div (Fixes React 19 interaction)
-        className="touch-none"
+        eventSource={containerRef as React.RefObject<HTMLElement>}
+        className="absolute inset-0 z-0 touch-none"
         camera={{ position: [0, 0, 6], fov: 45 }}
+        gl={{ alpha: true }} // Allow transparency
       >
-        <color attach="background" args={["#000000"]} />
+        {/* REMOVED: <color attach="background" args={["#000000"]} /> to allow transparency */}
         <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={0.5} />
         
         <ambientLight intensity={1.5} />
@@ -228,8 +229,8 @@ export default function OpsGlobeScene() {
         />
       </Canvas>
       
-      {/* UI Overlay */}
-      <div className="absolute top-6 left-6 z-10 pointer-events-none select-none">
+      {/* UI Overlay - Z-50 forces it on top of Canvas */}
+      <div className="absolute top-6 left-6 z-50 pointer-events-none select-none">
         <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tighter drop-shadow-md">
           OPS<span className="text-cyan-500">GLOBE</span>
         </h1>
@@ -244,7 +245,7 @@ export default function OpsGlobeScene() {
       </div>
 
       {/* DEBUG PANEL (Bottom Left) - Helps verify touch inputs */}
-      <div className="absolute bottom-2 left-2 z-10 pointer-events-none flex flex-col gap-2">
+      <div className="absolute bottom-2 left-2 z-50 pointer-events-none flex flex-col gap-2">
          <div className="text-[10px] text-zinc-600 font-mono bg-white/10 p-1">
            SYS_LOG: {debugMsg}
          </div>
