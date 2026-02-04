@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "id": "node_1770224207463",
+    "name": "Chatwoot Aigents",
+    "ip": "chatwoot.aigents.es",
+    "lat": 59.3293,
+    "lng": 18.0686,
+    "region": "Stockholm, SE",
+    "status": "offline"
+  }
+]

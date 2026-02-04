@@ -6,53 +6,48 @@ import net from 'net';
 const NODES_FILE = path.join(process.cwd(), 'utils', 'nodes.json');
 
 // Helper to check server status via TCP
-const checkServerStatus = (host: string): Promise<string> => {
+const checkServerStatus = (host: string): Promise<ServerStatus> => {
   return new Promise((resolve) => {
-    // Default to port 80 if not specified (rough check)
-    // If the user inputs "1.2.3.4", we try 80.
-    const port = 80; 
+    const port = 80; // Default to port 80 for a basic check
     const socket = new net.Socket();
-    socket.setTimeout(1500); // 1.5s timeout
+    socket.setTimeout(1500);
 
     socket.on('connect', () => {
       socket.destroy();
-      resolve('ONLINE');
+      resolve('online');
     });
-
     socket.on('timeout', () => {
       socket.destroy();
-      resolve('OFFLINE');
+      resolve('offline');
     });
-
-    socket.on('error', (err) => {
+    socket.on('error', () => {
       socket.destroy();
-      resolve('OFFLINE');
+      resolve('offline');
     });
 
     try {
-        socket.connect(port, host);
-    } catch(e) {
-        resolve('OFFLINE');
+      socket.connect(port, host);
+    } catch (e) {
+      resolve('offline');
     }
   });
 };
 
+
 export async function GET() {
   try {
-    // Ensure file exists
     try {
-        await fs.access(NODES_FILE);
+      await fs.access(NODES_FILE);
     } catch {
-        await fs.writeFile(NODES_FILE, '[]');
+      await fs.writeFile(NODES_FILE, '[]'); // Create if doesn't exist
     }
 
     const data = await fs.readFile(NODES_FILE, 'utf-8');
     let nodes = JSON.parse(data);
     
-    // Check status for all nodes in parallel
     const nodesWithStatus = await Promise.all(nodes.map(async (node: any) => {
-        const status = await checkServerStatus(node.ip);
-        return { ...node, status };
+      const status = await checkServerStatus(node.ip);
+      return { ...node, status };
     }));
 
     return NextResponse.json(nodesWithStatus);
@@ -64,59 +59,58 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    let { name, ip, lat, lng, region } = body;
+    let { name, ip, lat, lng, region } = await req.json();
 
     if (!name || !ip) {
-        return NextResponse.json({ error: 'Name and IP are required' }, { status: 400 });
+      return NextResponse.json({ error: 'Name and IP are required' }, { status: 400 });
     }
 
-    // Auto-Geolocation if coords are missing
+    // AUTO-GEOLOCATION LOGIC
     if (!lat || !lng) {
-        try {
-            // Using ip-api.com (free, no key required for basic use)
-            const geoRes = await fetch(`http://ip-api.com/json/${ip}`);
-            const geoData = await geoRes.json();
-            
-            if (geoData.status === 'success') {
-                lat = geoData.lat;
-                lng = geoData.lon;
-                if (!region) region = `${geoData.city}, ${geoData.countryCode}`;
-            } else {
-                // Fallback: Null Island or Random
-                lat = (Math.random() * 40) - 20;
-                lng = (Math.random() * 80) - 40;
-                region = region || 'Unknown Location';
-            }
-        } catch (e) {
-            console.error("GeoIP lookup failed:", e);
-            lat = 0;
-            lng = 0;
+      try {
+        const geoRes = await fetch(`http://ip-api.com/json/${ip}`);
+        if (!geoRes.ok) throw new Error('GeoIP API request failed');
+        
+        const geoData = await geoRes.json();
+        
+        if (geoData.status === 'success') {
+          lat = geoData.lat;
+          lng = geoData.lon;
+          if (!region) region = `${geoData.city}, ${geoData.countryCode}`; // Auto-fill region
+        } else {
+          // Fallback to a random-ish location if lookup fails
+          lat = 0;
+          lng = 0;
         }
+      } catch (e) {
+        console.error("GeoIP lookup failed, using fallback:", e);
+        lat = 0;
+        lng = 0;
+      }
     }
 
     let nodes = [];
     try {
-        const data = await fs.readFile(NODES_FILE, 'utf-8');
-        nodes = JSON.parse(data);
+      const data = await fs.readFile(NODES_FILE, 'utf-8');
+      nodes = JSON.parse(data);
     } catch (e) {
-        // file missing, start empty
+      // file missing is ok, we'll create it
     }
 
     const newNode = {
-        id: Date.now().toString(),
-        name,
-        ip,
-        lat: parseFloat(lat),
-        lng: parseFloat(lng),
-        region: region || 'Remote',
-        status: 'PENDING'
+      id: `node_${Date.now()}`,
+      name,
+      ip,
+      lat: parseFloat(lat),
+      lng: parseFloat(lng),
+      region: region || 'Auto-Detected',
+      status: 'offline' // Start as offline, next GET will update
     };
 
     nodes.push(newNode);
     await fs.writeFile(NODES_FILE, JSON.stringify(nodes, null, 2));
 
-    return NextResponse.json(newNode);
+    return NextResponse.json(newNode, { status: 201 });
   } catch (e) {
     console.error("Error saving node:", e);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

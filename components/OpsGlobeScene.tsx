@@ -382,7 +382,7 @@ export default function OpsGlobeScene() {
             location: n.ip, // Use IP as location label for now
             lat: n.lat,
             lon: n.lng,
-            status: n.status === 'ONLINE' ? 'online' : 'offline',
+            status: n.status === 'online' ? 'online' : 'offline',
             region: n.region,
             cpu: 0,
             memory: 0,
