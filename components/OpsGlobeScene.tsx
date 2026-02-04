@@ -46,10 +46,12 @@ function ServerMarker({
   data,
   radius,
   onSelect,
+  isSelected,
 }: {
   data: ServerLocation;
   radius: number;
   onSelect: (data: ServerLocation) => void;
+  isSelected: boolean;
 }) {
   const position = useMemo(() => latLongToVector3(data.lat, data.lon, radius), [data.lat, data.lon, radius]);
   const pulseRef = useRef<THREE.Mesh>(null);
@@ -88,15 +90,26 @@ function ServerMarker({
         <meshBasicMaterial color="#ffffff" transparent opacity={0.0} depthWrite={false} />
       </mesh>
 
-      <mesh>
+      <mesh scale={isSelected ? 1.25 : 1}>
         <sphereGeometry args={[0.06, 16, 16]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={hovered ? 2.5 : 1.4} />
+        <meshStandardMaterial
+          color={color}
+          emissive={color}
+          emissiveIntensity={isSelected ? 3.2 : hovered ? 2.5 : 1.4}
+        />
       </mesh>
 
       <mesh ref={pulseRef}>
         <sphereGeometry args={[0.12, 16, 16]} />
         <meshBasicMaterial color={color} transparent opacity={0.35} blending={THREE.AdditiveBlending} />
       </mesh>
+
+      {isSelected && (
+        <mesh>
+          <sphereGeometry args={[0.2, 20, 20]} />
+          <meshBasicMaterial color="#9fe7ff" transparent opacity={0.5} blending={THREE.AdditiveBlending} />
+        </mesh>
+      )}
     </group>
   );
 }
@@ -104,9 +117,11 @@ function ServerMarker({
 function MainGlobe({
   nodes,
   onSelectNode,
+  selectedNodeId,
 }: {
   nodes: ServerLocation[];
   onSelectNode: (node: ServerLocation | null) => void;
+  selectedNodeId: string | null;
 }) {
   const globeRef = useRef<THREE.Mesh>(null);
   const GLOBE_RADIUS = 2;
@@ -141,7 +156,13 @@ function MainGlobe({
         </mesh>
 
         {nodes.map((loc) => (
-          <ServerMarker key={loc.id} data={loc} radius={GLOBE_RADIUS} onSelect={onSelectNode} />
+          <ServerMarker
+            key={loc.id}
+            data={loc}
+            radius={GLOBE_RADIUS}
+            onSelect={onSelectNode}
+            isSelected={selectedNodeId === loc.id}
+          />
         ))}
       </mesh>
     </group>
@@ -204,7 +225,11 @@ export default function OpsGlobeScene() {
         <directionalLight position={[10, 8, 6]} intensity={2.1} />
         <pointLight position={[-10, -8, -5]} intensity={1.2} color="#4f8cff" />
 
-        <MainGlobe nodes={filteredNodes} onSelectNode={setSelectedNode} />
+        <MainGlobe
+          nodes={filteredNodes}
+          onSelectNode={setSelectedNode}
+          selectedNodeId={selectedNode?.id ?? null}
+        />
 
         <OrbitControls
           makeDefault
