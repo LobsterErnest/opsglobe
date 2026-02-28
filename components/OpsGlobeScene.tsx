@@ -151,7 +151,7 @@ function MainGlobe({
   const GLOBE_RADIUS = 2;
   
   // Load texture
-  const colorMap = useLoader(THREE.TextureLoader, '/earth_texture.jpg');
+  const colorMap = useLoader(THREE.TextureLoader, '/earth_daymap.jpg');
 
   return (
     <group>
