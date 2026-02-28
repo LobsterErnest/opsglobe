@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OpsGlobe
 
-## Getting Started
+Server monitoring dashboard with 3D globe visualization. Built with Next.js, React Three Fiber, and Tailwind.
 
-First, run the development server:
+## Features
+
+- **3D Globe** – Interactive globe with server markers
+- **Simulated + Public nodes** – Demo servers (NYC, SFO, London, Tokyo) + public infra (Google DNS, Cloudflare, GitHub, AWS, etc.)
+- **Custom nodes** – Add your own servers to monitor
+- **Network tools** – Ping, nslookup, port check, SSL check
+- **Real-time status** – CPU, memory, top processes (when running locally)
+
+## Local Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Open [http://localhost:3000](http://localhost:3000).
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Push to GitHub and import in Vercel.
+2. Deploy.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Custom nodes on Vercel
+
+Vercel has a read-only filesystem, so custom nodes can't be added via the UI. Use the **`OPSGLOBE_NODES`** environment variable:
+
+```json
+[
+  {"id":"my-site","name":"My Site","ip":"mysite.com","lat":40.4,"lng":-3.7,"region":"Spain"},
+  {"id":"api","name":"API Server","ip":"api.example.com","lat":37.77,"lng":-122.42,"region":"US-West"}
+]
+```
+
+Format: JSON array. Each object needs `id`, `name`, `ip`. Optional: `lat`, `lng`, `region` (auto-detected from IP if omitted).
+
+Set in Vercel: Project → Settings → Environment Variables → Add `OPSGLOBE_NODES`.
+
+## Tech Stack
+
+- Next.js 16
+- React 19
+- React Three Fiber + Drei
+- Tailwind CSS 4

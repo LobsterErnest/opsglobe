@@ -3,7 +3,10 @@ import fs from 'fs/promises';
 import path from 'path';
 import net from 'net';
 
+type ServerStatus = 'online' | 'offline';
+
 const NODES_FILE = path.join(process.cwd(), 'utils', 'nodes.json');
+const IS_VERCEL = !!process.env.VERCEL;
 
 // Helper to check server status via TCP
 const checkServerStatus = (host: string): Promise<ServerStatus> => {
@@ -34,17 +37,35 @@ const checkServerStatus = (host: string): Promise<ServerStatus> => {
 };
 
 
+function getCustomNodesFromEnv(): any[] {
+  const raw = process.env.OPSGLOBE_NODES;
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function GET() {
   try {
-    try {
-      await fs.access(NODES_FILE);
-    } catch {
-      await fs.writeFile(NODES_FILE, '[]'); // Create if doesn't exist
+    let nodes: any[] = [];
+
+    if (IS_VERCEL) {
+      // Vercel: read-only. Custom nodes from env var OPSGLOBE_NODES (JSON array)
+      nodes = getCustomNodesFromEnv();
+    } else {
+      // Local: read/write from utils/nodes.json
+      try {
+        await fs.access(NODES_FILE);
+      } catch {
+        await fs.writeFile(NODES_FILE, '[]');
+      }
+      const data = await fs.readFile(NODES_FILE, 'utf-8');
+      nodes = JSON.parse(data);
     }
 
-    const data = await fs.readFile(NODES_FILE, 'utf-8');
-    let nodes = JSON.parse(data);
-    
     const nodesWithStatus = await Promise.all(nodes.map(async (node: any) => {
       const status = await checkServerStatus(node.ip);
       return { ...node, status };
@@ -58,6 +79,13 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  if (IS_VERCEL) {
+    return NextResponse.json(
+      { error: 'Add nodes via OPSGLOBE_NODES env var on Vercel. See README.' },
+      { status: 501 }
+    );
+  }
+
   try {
     let { name, ip, lat, lng, region } = await req.json();
 

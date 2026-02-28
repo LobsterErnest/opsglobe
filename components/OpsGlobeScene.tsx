@@ -49,6 +49,13 @@ const PUBLIC_NODES: ServerLocation[] = [
   { id: "goog", name: "Google DNS", location: "Global Anycast", lat: 37.422, lon: -122.084, status: "online", region: "Global", cpu: 0, memory: 0, type: "public" },
   { id: "cf", name: "Cloudflare", location: "Global Anycast", lat: 37.7749, lon: -122.4194, status: "online", region: "Global", cpu: 0, memory: 0, type: "public" },
   { id: "q9", name: "Quad9", location: "Zurich, CH", lat: 47.3769, lon: 8.5417, status: "online", region: "EU-Central", cpu: 0, memory: 0, type: "public" },
+  { id: "github", name: "GitHub", location: "San Francisco, US", lat: 37.7749, lon: -122.4194, status: "online", region: "US-West", cpu: 0, memory: 0, type: "public" },
+  { id: "aws", name: "AWS us-east-1", location: "Virginia, US", lat: 37.4316, lon: -78.6569, status: "online", region: "US-East", cpu: 0, memory: 0, type: "public" },
+  { id: "vercel", name: "Vercel", location: "San Francisco, US", lat: 37.7749, lon: -122.4194, status: "online", region: "US-West", cpu: 0, memory: 0, type: "public" },
+  { id: "openai", name: "OpenAI API", location: "San Francisco, US", lat: 37.7749, lon: -122.4194, status: "online", region: "US-West", cpu: 0, memory: 0, type: "public" },
+  { id: "npm", name: "npm Registry", location: "Global CDN", lat: 37.7749, lon: -122.4194, status: "online", region: "Global", cpu: 0, memory: 0, type: "public" },
+  { id: "stripe", name: "Stripe", location: "San Francisco, US", lat: 37.7749, lon: -122.4194, status: "online", region: "US-West", cpu: 0, memory: 0, type: "public" },
+  { id: "fastly", name: "Fastly CDN", location: "San Francisco, US", lat: 37.7749, lon: -122.4194, status: "online", region: "US-West", cpu: 0, memory: 0, type: "public" },
 ];
 
 // --- 3D COMPONENTS ---
@@ -144,7 +151,7 @@ function MainGlobe({
   const GLOBE_RADIUS = 2;
   
   // Load texture
-  const colorMap = useLoader(THREE.TextureLoader, '/earth_daymap.jpg');
+  const colorMap = useLoader(THREE.TextureLoader, '/earth_texture.jpg');
 
   return (
     <group>
@@ -359,12 +366,13 @@ export default function OpsGlobeScene() {
         const statusRes = await fetch('/api/status');
         const statusData = await statusRes.json();
         
+        const loc = statusData.location || {};
         const realNode: ServerLocation = {
             id: 'local-hq',
             name: `${statusData.hostname} (HQ)`,
-            location: 'Berlin, DE', 
-            lat: 52.5200,
-            lon: 13.4050,
+            location: loc.name || 'Local',
+            lat: loc.lat ?? 52.52,
+            lon: loc.lng ?? 13.405,
             status: 'online',
             region: 'Local',
             cpu: statusData.cpu,
@@ -405,14 +413,20 @@ export default function OpsGlobeScene() {
 
   const handleAddNode = async (data: any) => {
     try {
-        await fetch('/api/nodes', {
+        const res = await fetch('/api/nodes', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
-        await fetchData(); // Refresh list immediately
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            alert(err.error || 'Failed to add node');
+            return;
+        }
+        await fetchData();
     } catch (e) {
         console.error("Failed to add node", e);
+        alert("Failed to add node");
     }
   };
 
